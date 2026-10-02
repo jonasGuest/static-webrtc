@@ -3,639 +3,363 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Encrypted Serverless WebRTC Room</title>
-  <!-- MQTT.js over WebSocket from public CDN -->
+  <title>Encrypted WebRTC Room</title>
+  
+  <!-- MQTT for serverless signaling -->
   <script src="https://unpkg.com/mqtt@5.3.5/dist/mqtt.min.js"></script>
+  <!-- Client-side canvas QR code generator -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+
   <style>
-    :root {
-      --bg: #0f172a;
-      --card-bg: #1e293b;
-      --border: #334155;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --primary: #38bdf8;
-      --primary-hover: #0ea5e9;
-      --accent: #10b981;
-      --danger: #f43f5e;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-
     body {
-      background-color: var(--bg);
-      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 600px;
+      margin: 20px auto;
+      padding: 0 15px;
+      color: #222;
+      background: #f9f9f9;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .status-bar {
+      font-size: 0.85rem;
+      color: #555;
+      margin-bottom: 1.5rem;
+    }
+
+    .section {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+
+    .section h2 {
+      font-size: 1rem;
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+
+    /* Share / QR Code section */
+    .qr-container {
       display: flex;
       flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
     }
 
-    header {
-      background: var(--card-bg);
-      border-bottom: 1px solid var(--border);
-      padding: 1rem 1.5rem;
+    canvas#qrCode {
+      border: 1px solid #eee;
+      border-radius: 4px;
+    }
+
+    .input-row {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
+      gap: 8px;
+      width: 100%;
     }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      font-weight: 700;
-      font-size: 1.1rem;
-    }
-
-    .status-badge {
-      font-size: 0.75rem;
-      padding: 0.25rem 0.6rem;
-      border-radius: 9999px;
-      font-weight: 600;
-      background: #334155;
-      color: var(--text-muted);
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-    }
-
-    .status-badge.online {
-      background: rgba(16, 185, 129, 0.2);
-      color: #34d399;
-    }
-
-    .container {
-      display: grid;
-      grid-template-columns: 280px 1fr 340px;
+    input[type="text"] {
       flex: 1;
-      overflow: hidden;
-    }
-
-    aside, main {
-      padding: 1rem;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    aside {
-      background: rgba(15, 23, 42, 0.6);
-      border-right: 1px solid var(--border);
-    }
-
-    .panel-right {
-      border-right: none;
-      border-left: 1px solid var(--border);
-    }
-
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1rem;
-    }
-
-    h2 {
+      padding: 8px 10px;
       font-size: 0.9rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      margin-bottom: 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
     }
 
     button {
-      background: var(--primary);
-      color: #0f172a;
-      border: none;
-      border-radius: 6px;
-      padding: 0.6rem 1rem;
-      font-weight: 600;
+      padding: 8px 14px;
+      font-size: 0.9rem;
       cursor: pointer;
-      transition: background 0.2s;
+      background: #0066cc;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
     }
 
     button:hover {
-      background: var(--primary-hover);
+      background: #0052a3;
     }
 
     button.secondary {
-      background: #334155;
-      color: var(--text);
+      background: #eee;
+      color: #222;
+      border: 1px solid #ccc;
     }
 
     button.secondary:hover {
-      background: #475569;
+      background: #ddd;
     }
 
-    .link-box {
-      display: flex;
-      gap: 0.5rem;
-      margin-top: 0.5rem;
-    }
-
-    .link-box input {
-      flex: 1;
-      background: #0f172a;
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 0.5rem;
-      border-radius: 4px;
-      font-size: 0.8rem;
-    }
-
-    ul.peer-list {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-
-    .peer-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #0f172a;
-      padding: 0.5rem 0.75rem;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      border: 1px solid var(--border);
-    }
-
-    .messages-container {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
-    .message-log {
-      flex: 1;
-      padding: 1rem;
+    /* Chat Log */
+    #messages {
+      height: 250px;
       overflow-y: auto;
+      border: 1px solid #eee;
+      background: #fafafa;
+      padding: 10px;
+      border-radius: 4px;
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
+      gap: 8px;
+      font-size: 0.9rem;
     }
 
-    .msg-bubble {
-      max-width: 80%;
-      padding: 0.6rem 0.9rem;
-      border-radius: 8px;
-      font-size: 0.9rem;
-      line-height: 1.4;
+    .msg {
+      padding: 6px 10px;
+      border-radius: 4px;
+      max-width: 85%;
       word-break: break-word;
     }
 
-    .msg-bubble.me {
-      align-self: flex-end;
-      background: #0369a1;
+    .msg.me {
+      background: #0066cc;
       color: #fff;
+      align-self: flex-end;
     }
 
-    .msg-bubble.peer {
+    .msg.peer {
+      background: #e5e5e5;
+      color: #111;
       align-self: flex-start;
-      background: #334155;
-      color: #fff;
     }
 
     .msg-meta {
-      font-size: 0.7rem;
-      opacity: 0.7;
-      margin-bottom: 0.2rem;
-    }
-
-    .chat-input-bar {
-      display: flex;
-      padding: 0.75rem;
-      gap: 0.5rem;
-      background: #1e293b;
-      border-top: 1px solid var(--border);
-    }
-
-    .chat-input-bar input {
-      flex: 1;
-      background: #0f172a;
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 0.6rem 0.8rem;
-      border-radius: 6px;
-      outline: none;
-    }
-
-    .crypto-log {
-      font-family: monospace;
       font-size: 0.75rem;
-      color: #94a3b8;
-      height: 100%;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
+      opacity: 0.75;
+      margin-bottom: 2px;
     }
 
-    .crypto-item {
-      background: #0f172a;
-      padding: 0.4rem 0.6rem;
-      border-radius: 4px;
-      border-left: 2px solid var(--primary);
-      word-break: break-all;
-    }
-
-    @media (max-width: 900px) {
-      .container {
-        grid-template-columns: 1fr;
-      }
-      .panel-right { display: none; }
+    .note {
+      font-size: 0.75rem;
+      color: #666;
+      margin-top: 6px;
     }
   </style>
 </head>
 <body>
 
-  <header>
-    <div class="brand">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2">
-        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-      </svg>
-      <span>Serverless WebRTC Mesh</span>
+  <h1>WebRTC Encrypted Room</h1>
+  <div class="status-bar">
+    <span id="sigStatus">Signaling: Connecting...</span> | 
+    <strong>Connected Peers: <span id="peerCount">0</span></strong>
+  </div>
+
+  <!-- QR & Share Section -->
+  <div class="section">
+    <h2>Scan or Share Room Link</h2>
+    <div class="qr-container">
+      <canvas id="qrCode"></canvas>
+      <div class="input-row">
+        <input type="text" id="shareUrl" readonly />
+        <button id="btnCopy">Copy</button>
+        <button class="secondary" id="btnNew">New Room</button>
+      </div>
     </div>
-    <div style="display: flex; gap: 0.5rem;">
-      <span id="signalingStatus" class="status-badge">Signaling: Connecting...</span>
-      <span id="cipherBadge" class="status-badge online">AES-256-GCM</span>
+    <div class="note">
+      * WebRTC signaling is encrypted with AES-256-GCM. The key in <code>#key=...</code> never reaches the host server.
+      If running on <code>localhost</code>, use your computer's local Wi-Fi IP (e.g. <code>192.168.x.x</code>) so your phone can reach it.
     </div>
-  </header>
+  </div>
 
-  <div class="container">
-    <!-- Left Sidebar: Room Details & Peers -->
-    <aside>
-      <div class="card">
-        <h2>Room Invite</h2>
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">
-          Signaling is end-to-end encrypted. The key in the fragment (<code>#</code>) is never sent to the web host.
-        </p>
-        <div class="link-box">
-          <input type="text" id="shareLink" readonly />
-          <button class="secondary" id="btnCopy">Copy</button>
-        </div>
-        <button id="btnNewRoom" class="secondary" style="width: 100%; margin-top: 0.5rem;">Create New Room</button>
-      </div>
-
-      <div class="card" style="flex: 1; display: flex; flex-direction: column;">
-        <h2>Connected Peers (<span id="peerCount">0</span>)</h2>
-        <ul id="peerList" class="peer-list"></ul>
-      </div>
-    </aside>
-
-    <!-- Center: Broadcast Message Area -->
-    <main>
-      <div class="messages-container">
-        <div id="messageLog" class="message-log"></div>
-        <form id="chatForm" class="chat-input-bar">
-          <input type="text" id="chatInput" placeholder="Broadcast a message across WebRTC data channels..." autocomplete="off" />
-          <button type="submit">Broadcast</button>
-        </form>
-      </div>
-    </main>
-
-    <!-- Right: End-to-End Encrypted Signal Traffic Inspector -->
-    <aside class="panel-right">
-      <div class="card" style="height: 100%; display: flex; flex-direction: column;">
-        <h2>Encrypted Signaling Inspector</h2>
-        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">
-          Shows raw ciphertext & IVs routed across the public MQTT broker:
-        </p>
-        <div id="cryptoLog" class="crypto-log"></div>
-      </div>
-    </aside>
+  <!-- Messages Section -->
+  <div class="section">
+    <h2>Broadcast Chat</h2>
+    <div id="messages"></div>
+    <form id="chatForm" style="display: flex; gap: 8px; margin-top: 10px;">
+      <input type="text" id="msgInput" placeholder="Type a broadcast message..." autocomplete="off" />
+      <button type="submit">Send</button>
+    </form>
   </div>
 
   <script>
     /**
-     * =========================================================================
-     * 1. Cryptographic Primitives (Web Crypto API: AES-256-GCM + SHA-256)
-     * =========================================================================
+     * 1. Cryptographic Helpers (AES-256-GCM + SHA-256)
      */
-    const CryptoUtil = {
-      buf2hex(buffer) {
-        return [...new Uint8Array(buffer)].map(x => x.toString(16).padStart(2, '0')).join('');
+    const Crypto = {
+      buf2hex(b) {
+        return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
       },
-
-      hex2buf(hexString) {
-        const bytes = new Uint8Array(Math.ceil(hexString.length / 2));
-        for (let i = 0; i < bytes.length; i++) {
-          bytes[i] = parseInt(hexString.substr(i * 2, 2), 16);
-        }
-        return bytes.buffer;
+      hex2buf(hex) {
+        const b = new Uint8Array(Math.ceil(hex.length / 2));
+        for (let i = 0; i < b.length; i++) b[i] = parseInt(hex.substr(i * 2, 2), 16);
+        return b.buffer;
       },
-
       buf2b64(buf) {
-        let binary = '';
+        let bin = '';
         const bytes = new Uint8Array(buf);
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        return btoa(binary);
+        for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin);
       },
-
       b642buf(str) {
-        const binary = atob(str);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
+        const bin = atob(str);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
         return bytes.buffer;
       },
-
       async generateKey() {
-        const key = await crypto.subtle.generateKey(
-          { name: 'AES-GCM', length: 256 },
-          true,
-          ['encrypt', 'decrypt']
-        );
-        const raw = await crypto.subtle.exportKey('raw', key);
-        return this.buf2hex(raw);
+        const k = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+        return this.buf2hex(await crypto.subtle.exportKey('raw', k));
       },
-
-      async importKey(hexKey) {
-        return crypto.subtle.importKey(
-          'raw',
-          this.hex2buf(hexKey),
-          { name: 'AES-GCM' },
-          false,
-          ['encrypt', 'decrypt']
-        );
+      async importKey(hex) {
+        return crypto.subtle.importKey('raw', this.hex2buf(hex), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
       },
-
-      async sha256(text) {
-        const data = new TextEncoder().encode(text);
-        const hash = await crypto.subtle.digest('SHA-256', data);
-        return this.buf2hex(hash).substring(0, 32);
+      async hash(str) {
+        const d = new TextEncoder().encode(str);
+        const h = await crypto.subtle.digest('SHA-256', d);
+        return this.buf2hex(h).substring(0, 32);
       },
-
-      async encrypt(cryptoKey, plainObj) {
+      async encrypt(key, obj) {
         const iv = crypto.getRandomValues(new Uint8Array(12));
-        const encoded = new TextEncoder().encode(JSON.stringify(plainObj));
-        const ciphertext = await crypto.subtle.encrypt(
-          { name: 'AES-GCM', iv },
-          cryptoKey,
-          encoded
-        );
-        return JSON.stringify({
-          iv: this.buf2b64(iv),
-          data: this.buf2b64(ciphertext)
-        });
+        const encoded = new TextEncoder().encode(JSON.stringify(obj));
+        const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+        return JSON.stringify({ iv: this.buf2b64(iv), data: this.buf2b64(ct) });
       },
-
-      async decrypt(cryptoKey, rawEnvelope) {
-        const envelope = JSON.parse(rawEnvelope);
-        const iv = this.b642buf(envelope.iv);
-        const data = this.b642buf(envelope.data);
-        const decrypted = await crypto.subtle.decrypt(
-          { name: 'AES-GCM', iv: new Uint8Array(iv) },
-          cryptoKey,
-          data
+      async decrypt(key, envelopeStr) {
+        const { iv, data } = JSON.parse(envelopeStr);
+        const pt = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: new Uint8Array(this.b642buf(iv)) },
+          key,
+          this.b642buf(data)
         );
-        return JSON.parse(new TextDecoder().decode(decrypted));
+        return JSON.parse(new TextDecoder().decode(pt));
       }
     };
 
     /**
-     * =========================================================================
-     * 2. Reusable Secure WebRTC Mesh Wrapper
-     * =========================================================================
+     * 2. WebRTC Mesh Controller
      */
-    class SecureWebRTCRoom {
-      constructor({ roomId, keyHex, brokerUrl = 'wss://broker.hivemq.com:8884/mqtt' }) {
+    class MeshRoom {
+      constructor(roomId, keyHex) {
         this.roomId = roomId;
         this.keyHex = keyHex;
-        this.brokerUrl = brokerUrl;
-        this.myPeerId = 'peer_' + Math.random().toString(36).substr(2, 9);
-        this.cryptoKey = null;
-        this.topic = null;
-        this.mqttClient = null;
-
-        // Map: peerId -> { pc, dc, pendingCandidates }
-        this.peers = new Map();
-
-        // Event Listeners
-        this.onMessageCallback = () => {};
-        this.onPeerListChangeCallback = () => {};
-        this.onSignalActivityCallback = () => {};
-        this.onSignalingStatusCallback = () => {};
-
+        this.myPeerId = 'user_' + Math.random().toString(36).substr(2, 6);
+        this.peers = new Map(); // id -> { pc, dc, pendingCandidates }
         this.rtcConfig = {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-          ]
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
         };
       }
 
-      async init() {
-        this.cryptoKey = await CryptoUtil.importKey(this.keyHex);
-        // Topic is hashed to hide the room ID from cleartext broker indexing
-        const topicHash = await CryptoUtil.sha256(this.roomId);
+      async start() {
+        this.cryptoKey = await Crypto.importKey(this.keyHex);
+        const topicHash = await Crypto.hash(this.roomId);
         this.topic = `mesh/webrtc/${topicHash}`;
 
-        this.onSignalingStatusCallback('Connecting to Signaling...');
-        this.mqttClient = mqtt.connect(this.brokerUrl, {
-          clientId: `client_${this.myPeerId}_${Math.random().toString(16).substr(2, 6)}`,
-          clean: true,
-          keepalive: 30
+        // Connect to public MQTT signaling channel
+        this.mqtt = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
+          clientId: `c_${this.myPeerId}_${Math.random().toString(16).substr(2, 4)}`,
+          clean: true
         });
 
-        this.mqttClient.on('connect', () => {
-          this.onSignalingStatusCallback('Signaling Connected');
-          this.mqttClient.subscribe(this.topic, (err) => {
-            if (!err) {
-              // Announce presence to all peers in the room
-              this.sendSignal({ type: 'join', from: this.myPeerId });
-            }
+        this.mqtt.on('connect', () => {
+          document.getElementById('sigStatus').innerText = 'Signaling: Connected';
+          this.mqtt.subscribe(this.topic, () => {
+            this.sendSignal({ type: 'join', from: this.myPeerId });
           });
         });
 
-        this.mqttClient.on('message', async (topic, payload) => {
+        this.mqtt.on('message', async (_, payload) => {
           try {
-            const rawStr = payload.toString();
-            const decrypted = await CryptoUtil.decrypt(this.cryptoKey, rawStr);
-            this.handleSignalingMessage(decrypted, rawStr);
+            const msg = await Crypto.decrypt(this.cryptoKey, payload.toString());
+            this.onSignalingMessage(msg);
           } catch (e) {
-            // Message meant for another key or corrupted; silently ignore
+            // Decryption failure or message not intended for this room key
           }
-        });
-
-        this.mqttClient.on('error', (err) => {
-          this.onSignalingStatusCallback('Signaling Error');
-          console.error('MQTT Signaling Error:', err);
         });
       }
 
       async sendSignal(msg) {
-        if (!this.mqttClient || !this.cryptoKey) return;
-        const cipherPayload = await CryptoUtil.encrypt(this.cryptoKey, msg);
-        this.mqttClient.publish(this.topic, cipherPayload);
-        this.onSignalActivityCallback({
-          direction: 'out',
-          type: msg.type,
-          ciphertext: cipherPayload
-        });
+        if (!this.mqtt || !this.cryptoKey) return;
+        const cipher = await Crypto.encrypt(this.cryptoKey, msg);
+        this.mqtt.publish(this.topic, cipher);
       }
 
-      async handleSignalingMessage(msg, rawCipher) {
-        if (msg.from === this.myPeerId) return; // Ignore own messages
+      async onSignalingMessage(msg) {
+        if (msg.from === this.myPeerId) return;
 
-        this.onSignalActivityCallback({
-          direction: 'in',
-          type: msg.type,
-          ciphertext: rawCipher
-        });
-
-        switch (msg.type) {
-          case 'join':
-            // New peer announced presence. Acknowledge and initiate if deterministic rule matches.
-            this.sendSignal({ type: 'welcome', from: this.myPeerId, to: msg.from });
-            this.setupPeerConnection(msg.from, true);
-            break;
-
-          case 'welcome':
-            if (msg.to === this.myPeerId) {
-              this.setupPeerConnection(msg.from, false);
-            }
-            break;
-
-          case 'offer':
-            if (msg.to === this.myPeerId) {
-              await this.handleOffer(msg);
-            }
-            break;
-
-          case 'answer':
-            if (msg.to === this.myPeerId) {
-              await this.handleAnswer(msg);
-            }
-            break;
-
-          case 'candidate':
-            if (msg.to === this.myPeerId) {
-              await this.handleCandidate(msg);
-            }
-            break;
+        if (msg.type === 'join') {
+          this.sendSignal({ type: 'welcome', from: this.myPeerId, to: msg.from });
+          this.setupPeer(msg.from, true);
+        } else if (msg.type === 'welcome' && msg.to === this.myPeerId) {
+          this.setupPeer(msg.from, false);
+        } else if (msg.type === 'offer' && msg.to === this.myPeerId) {
+          await this.handleOffer(msg);
+        } else if (msg.type === 'answer' && msg.to === this.myPeerId) {
+          await this.handleAnswer(msg);
+        } else if (msg.type === 'candidate' && msg.to === this.myPeerId) {
+          await this.handleCandidate(msg);
         }
       }
 
-      setupPeerConnection(remotePeerId, isInitiator) {
-        if (this.peers.has(remotePeerId)) return this.peers.get(remotePeerId);
+      setupPeer(peerId, isInitiator) {
+        if (this.peers.has(peerId)) return this.peers.get(peerId);
 
         const pc = new RTCPeerConnection(this.rtcConfig);
-        const peerRecord = { pc, dc: null, pendingCandidates: [] };
-        this.peers.set(remotePeerId, peerRecord);
+        const record = { pc, dc: null, pendingCandidates: [] };
+        this.peers.set(peerId, record);
 
-        pc.onicecandidate = (event) => {
-          if (event.candidate) {
-            this.sendSignal({
-              type: 'candidate',
-              from: this.myPeerId,
-              to: remotePeerId,
-              candidate: event.candidate
-            });
+        pc.onicecandidate = (e) => {
+          if (e.candidate) {
+            this.sendSignal({ type: 'candidate', from: this.myPeerId, to: peerId, candidate: e.candidate });
           }
         };
 
         pc.onconnectionstatechange = () => {
           if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
-            this.removePeer(remotePeerId);
+            this.removePeer(peerId);
           }
         };
 
         if (isInitiator) {
-          const dc = pc.createDataChannel('broadcast-channel');
-          this.bindDataChannel(remotePeerId, dc);
-          peerRecord.dc = dc;
+          const dc = pc.createDataChannel('chat');
+          this.bindDC(peerId, dc);
+          record.dc = dc;
 
           pc.onnegotiationneeded = async () => {
-            try {
-              const offer = await pc.createOffer();
-              await pc.setLocalDescription(offer);
-              this.sendSignal({
-                type: 'offer',
-                from: this.myPeerId,
-                to: remotePeerId,
-                sdp: pc.localDescription
-              });
-            } catch (err) {
-              console.error('Error creating offer:', err);
-            }
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            this.sendSignal({ type: 'offer', from: this.myPeerId, to: peerId, sdp: pc.localDescription });
           };
         } else {
-          pc.ondatachannel = (event) => {
-            this.bindDataChannel(remotePeerId, event.channel);
-            peerRecord.dc = event.channel;
+          pc.ondatachannel = (e) => {
+            this.bindDC(peerId, e.channel);
+            record.dc = e.channel;
           };
         }
-
-        return peerRecord;
+        return record;
       }
 
-      bindDataChannel(remotePeerId, dc) {
-        dc.onopen = () => {
-          this.onPeerListChangeCallback(this.getConnectedPeerIds());
-        };
-
-        dc.onclose = () => {
-          this.removePeer(remotePeerId);
-        };
-
-        dc.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            this.onMessageCallback({ from: remotePeerId, data });
-          } catch (e) {
-            this.onMessageCallback({ from: remotePeerId, data: event.data });
-          }
+      bindDC(peerId, dc) {
+        dc.onopen = () => updatePeerCount();
+        dc.onclose = () => this.removePeer(peerId);
+        dc.onmessage = (e) => {
+          appendMessage(peerId, e.data, 'peer');
         };
       }
 
       async handleOffer(msg) {
-        let peer = this.peers.get(msg.from);
-        if (!peer) {
-          peer = this.setupPeerConnection(msg.from, false);
-        }
-
+        let peer = this.peers.get(msg.from) || this.setupPeer(msg.from, false);
         await peer.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-
-        // Flush queued candidates
-        while (peer.pendingCandidates.length > 0) {
-          const cand = peer.pendingCandidates.shift();
-          await peer.pc.addIceCandidate(cand);
+        while (peer.pendingCandidates.length) {
+          await peer.pc.addIceCandidate(peer.pendingCandidates.shift());
         }
-
         const answer = await peer.pc.createAnswer();
         await peer.pc.setLocalDescription(answer);
-
-        this.sendSignal({
-          type: 'answer',
-          from: this.myPeerId,
-          to: msg.from,
-          sdp: peer.pc.localDescription
-        });
+        this.sendSignal({ type: 'answer', from: this.myPeerId, to: msg.from, sdp: peer.pc.localDescription });
       }
 
       async handleAnswer(msg) {
         const peer = this.peers.get(msg.from);
         if (peer && peer.pc) {
           await peer.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-          while (peer.pendingCandidates.length > 0) {
-            const cand = peer.pendingCandidates.shift();
-            await peer.pc.addIceCandidate(cand);
+          while (peer.pendingCandidates.length) {
+            await peer.pc.addIceCandidate(peer.pendingCandidates.shift());
           }
         }
       }
@@ -643,188 +367,116 @@
       async handleCandidate(msg) {
         const peer = this.peers.get(msg.from);
         if (peer && peer.pc) {
-          const candidate = new RTCIceCandidate(msg.candidate);
+          const cand = new RTCIceCandidate(msg.candidate);
           if (!peer.pc.remoteDescription) {
-            peer.pendingCandidates.push(candidate);
+            peer.pendingCandidates.push(cand);
           } else {
-            await peer.pc.addIceCandidate(candidate);
+            await peer.pc.addIceCandidate(cand);
           }
         }
       }
 
       removePeer(peerId) {
-        const peer = this.peers.get(peerId);
-        if (peer) {
-          if (peer.dc) peer.dc.close();
-          if (peer.pc) peer.pc.close();
+        const p = this.peers.get(peerId);
+        if (p) {
+          if (p.dc) p.dc.close();
+          if (p.pc) p.pc.close();
           this.peers.delete(peerId);
-          this.onPeerListChangeCallback(this.getConnectedPeerIds());
+          updatePeerCount();
         }
       }
 
-      getConnectedPeerIds() {
-        const active = [];
-        for (const [id, peer] of this.peers.entries()) {
-          if (peer.dc && peer.dc.readyState === 'open') {
-            active.push(id);
+      broadcast(text) {
+        let sent = 0;
+        for (const [_, p] of this.peers.entries()) {
+          if (p.dc && p.dc.readyState === 'open') {
+            p.dc.send(text);
+            sent++;
           }
         }
-        return active;
-      }
-
-      /**
-       * Broadcasts payload directly across all active WebRTC Data Channels
-       */
-      broadcast(payload) {
-        const envelope = JSON.stringify({
-          sender: this.myPeerId,
-          timestamp: Date.now(),
-          payload
-        });
-
-        let sentCount = 0;
-        for (const [_, peer] of this.peers.entries()) {
-          if (peer.dc && peer.dc.readyState === 'open') {
-            peer.dc.send(envelope);
-            sentCount++;
-          }
-        }
-        return sentCount;
+        return sent;
       }
     }
 
     /**
-     * =========================================================================
-     * 3. UI Application Logic & Lifecycle
-     * =========================================================================
+     * 3. UI Glue
      */
-    let roomInstance = null;
+    let room;
 
-    // Parse URL hash for #room=...&key=...
-    function parseHash() {
-      const hash = window.location.hash.substring(1);
-      const params = new URLSearchParams(hash);
-      return {
-        room: params.get('room'),
-        key: params.get('key')
-      };
+    function updatePeerCount() {
+      let count = 0;
+      for (const [_, p] of room.peers.entries()) {
+        if (p.dc && p.dc.readyState === 'open') count++;
+      }
+      document.getElementById('peerCount').innerText = count;
     }
 
-    async function initApp() {
-      let { room, key } = parseHash();
+    function appendMessage(sender, text, type) {
+      const box = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = `msg ${type}`;
+      div.innerHTML = `<div class="msg-meta">${sender}</div>${document.createTextNode(text).textContent}`;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
 
-      // If no room or key exists in the URL, create a new room and update the hash
-      if (!room || !key) {
-        room = 'room_' + Math.random().toString(36).substr(2, 8);
-        key = await CryptoUtil.generateKey();
-        window.location.hash = `room=${room}&key=${key}`;
+    async function init() {
+      const params = new URLSearchParams(window.location.hash.substring(1));
+      let roomId = params.get('room');
+      let key = params.get('key');
+
+      if (!roomId || !key) {
+        roomId = 'room_' + Math.random().toString(36).substr(2, 6);
+        key = await Crypto.generateKey();
+        window.location.hash = `room=${roomId}&key=${key}`;
       }
 
-      // Populate share link input
-      document.getElementById('shareLink').value = window.location.href;
+      const fullUrl = window.location.href;
+      document.getElementById('shareUrl').value = fullUrl;
 
-      // Initialize the WebRTC wrapper
-      roomInstance = new SecureWebRTCRoom({ roomId: room, keyHex: key });
+      // Generate QR Code onto canvas
+      new QRious({
+        element: document.getElementById('qrCode'),
+        value: fullUrl,
+        size: 160
+      });
 
-      roomInstance.onSignalingStatusCallback = (status) => {
-        const el = document.getElementById('signalingStatus');
-        el.innerText = `Signaling: ${status}`;
-        if (status.includes('Connected')) {
-          el.classList.add('online');
-        } else {
-          el.classList.remove('online');
-        }
-      };
-
-      roomInstance.onPeerListChangeCallback = (activePeers) => {
-        document.getElementById('peerCount').innerText = activePeers.length;
-        const listEl = document.getElementById('peerList');
-        listEl.innerHTML = '';
-        activePeers.forEach(id => {
-          const li = document.createElement('li');
-          li.className = 'peer-item';
-          li.innerHTML = `<span>${id}</span><span style="color:#10b981;">• P2P Connected</span>`;
-          listEl.appendChild(li);
-        });
-      };
-
-      roomInstance.onMessageCallback = ({ from, data }) => {
-        appendMessage(from, data.payload || data, 'peer');
-      };
-
-      roomInstance.onSignalActivityCallback = ({ direction, type, ciphertext }) => {
-        appendCryptoLog(direction, type, ciphertext);
-      };
-
-      await roomInstance.init();
+      room = new MeshRoom(roomId, key);
+      await room.start();
     }
 
-    // Append chat bubble
-    function appendMessage(sender, text, type) {
-      const log = document.getElementById('messageLog');
-      const bubble = document.createElement('div');
-      bubble.className = `msg-bubble ${type}`;
-      bubble.innerHTML = `
-        <div class="msg-meta">${sender === 'me' ? 'You' : sender}</div>
-        <div>${escapeHtml(text)}</div>
-      `;
-      log.appendChild(bubble);
-      log.scrollTop = log.scrollHeight;
-    }
-
-    // Append cryptographic signaling envelope log
-    function appendCryptoLog(dir, type, cipherJson) {
-      const container = document.getElementById('cryptoLog');
-      const item = document.createElement('div');
-      item.className = 'crypto-item';
-      const arrow = dir === 'out' ? '↗ [SENT]' : '↘ [RECV]';
-      const preview = cipherJson.length > 90 ? cipherJson.substring(0, 90) + '...' : cipherJson;
-      item.innerHTML = `<strong>${arrow} ${type.toUpperCase()}</strong><br>${escapeHtml(preview)}`;
-      container.prepend(item);
-    }
-
-    function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.innerText = str;
-      return div.innerHTML;
-    }
-
-    // Chat Submission Form
     document.getElementById('chatForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      const input = document.getElementById('chatInput');
-      const text = input.value.trim();
-      if (!text || !roomInstance) return;
+      const input = document.getElementById('msgInput');
+      const val = input.value.trim();
+      if (!val) return;
 
-      const sent = roomInstance.broadcast(text);
-      appendMessage('me', text, 'me');
+      const sent = room.broadcast(val);
+      appendMessage('Me', val, 'me');
       input.value = '';
 
       if (sent === 0) {
-        appendMessage('System', 'Message sent locally, but no other peers are currently connected.', 'peer');
+        appendMessage('System', 'No peers connected yet. Scan the QR code with another device to join.', 'peer');
       }
     });
 
-    // Copy link helper
     document.getElementById('btnCopy').addEventListener('click', () => {
-      const input = document.getElementById('shareLink');
-      input.select();
-      navigator.clipboard.writeText(input.value);
+      const urlInput = document.getElementById('shareUrl');
+      urlInput.select();
+      navigator.clipboard.writeText(urlInput.value);
       const btn = document.getElementById('btnCopy');
       btn.innerText = 'Copied!';
-      setTimeout(() => btn.innerText = 'Copy', 2000);
+      setTimeout(() => btn.innerText = 'Copy', 1500);
     });
 
-    // Create New Room button
-    document.getElementById('btnNewRoom').addEventListener('click', async () => {
-      const newRoom = 'room_' + Math.random().toString(36).substr(2, 8);
-      const newKey = await CryptoUtil.generateKey();
+    document.getElementById('btnNew').addEventListener('click', async () => {
+      const newRoom = 'room_' + Math.random().toString(36).substr(2, 6);
+      const newKey = await Crypto.generateKey();
       window.location.hash = `room=${newRoom}&key=${newKey}`;
       window.location.reload();
     });
 
-    // Bootstrap
-    window.addEventListener('DOMContentLoaded', initApp);
+    window.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
 </html>
